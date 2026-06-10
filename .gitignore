@@ -1,0 +1,9 @@
+.idea
+test/keys/id_ed25519
+test/keys/id_ed25519.pub
+test/volumes/ssh/*
+!test/volumes/ssh/.gitkeep
+test/volumes/authorized_keys/*
+!test/volumes/authorized_keys/.gitkeep
+test/volumes/traefik/*
+!test/volumes/traefik/.gitkeep

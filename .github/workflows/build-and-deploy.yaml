@@ -1,0 +1,83 @@
+name: Build and Deploy Docker
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 1'  # every monday at 02:00 UTC
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: extractions/setup-just@v2
+      - run: sudo apt-get install -y shellcheck
+      - name: Install hadolint
+        run: |
+          wget -qO /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          chmod +x /usr/local/bin/hadolint
+      - run: just lint
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: extractions/setup-just@v2
+      - run: just test
+
+  build:
+    needs: test
+    if: github.ref != 'refs/heads/master' && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build Docker Image
+        run: docker build --no-cache --pull .
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/master' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      IMAGE_NAME: "ghcr.io/${{ github.repository_owner }}/ssh-traefik-tunnel"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Get Alpine version
+        run: |
+          ALPINE_VERSION=$(grep -m1 '^FROM alpine:' Dockerfile | cut -d: -f2)
+          echo "ALPINE_VERSION=${ALPINE_VERSION}" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LC=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          docker build \
+            --no-cache \
+            --pull \
+            --tag "${{ env.IMAGE_NAME_LC }}:alpine${{ env.ALPINE_VERSION }}" \
+            --tag "${{ env.IMAGE_NAME_LC }}:latest" \
+            .
+          docker push "${{ env.IMAGE_NAME_LC }}:alpine${{ env.ALPINE_VERSION }}"
+          docker push "${{ env.IMAGE_NAME_LC }}:latest"

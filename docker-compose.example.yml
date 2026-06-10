@@ -1,0 +1,39 @@
+services:
+  traefik:
+    image: traefik:v3
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --providers.file.directory=/traefik/dynamic # File provider watches the shared volume for dynamic configs
+      - --providers.file.watch=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=you@example.com
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+    volumes:
+      - ./volumes/traefik/dynamic:/traefik/dynamic:ro
+      - ./volumes/traefik/letsencrypt:/letsencrypt
+
+  ssh-traefik-tunnel:
+    image: ghcr.io/selim13/ssh-traefik-tunnel:latest
+    container_name: ssh-traefik-tunnel
+    restart: unless-stopped
+    ports:
+      - "2222:22"
+    volumes:
+      - ./volumes/ssh-traefik-tunnel/authorized_keys:/conf.d/authorized_keys:ro # public keys (one file, standard authorized_keys format)
+      - ./volumes/traefik/dynamic:/conf.d/traefik # shared with Traefik
+    environment:
+      TUNNEL_HOST: "ssh-traefik-tunnel"          # must match the service's
+      AUTO_MAP_ENABLED: "true"
+      AUTO_MAP_BASE_DOMAIN: "tunnel.example.com" # <port>.tunnel.example.com
+      AUTO_MAP_SCHEME: "https"                   # http or https for auto-mapped ports
+      PORT_MAPPINGS: "8080:https://https-test.example.com,8081:https://http-test.example.com"
+      EXCLUDE_PORTS: ""                          # e.g. "9000,9001"
+      TRAEFIK_HTTPS_ENTRYPOINT: "websecure"
+      TRAEFIK_HTTP_ENTRYPOINT: "web"
+      TRAEFIK_CERT_RESOLVER: ""                   # ACME resolver name; set to e.g. "letsencrypt", empty = use Traefik default cert

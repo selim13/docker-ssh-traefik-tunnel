@@ -1,0 +1,11 @@
+.git
+.github
+.gitignore
+.gitattributes
+.gitmodules
+.idea
+*.md
+!README.md
+docker-compose*.yml
+justfile
+test/
