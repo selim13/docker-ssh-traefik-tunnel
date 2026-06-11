@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: extractions/setup-just@v2
+      - uses: extractions/setup-just@v4
       - run: sudo apt-get install -y shellcheck
       - name: Install hadolint
         run: |
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-      - uses: extractions/setup-just@v2
+      - uses: extractions/setup-just@v4
       - run: just test
 
   build:
